@@ -26,7 +26,7 @@ def get_tree_structure():
     print('Processing tree structure in backend...')
     data = request.json
     filepath = data['filepath']
-    frontend_path = '/path/to/frontend'
+    frontend_path = '../tangerine'
     filename = filepath.split('.')[0]
     folder_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
 
@@ -65,4 +65,4 @@ if __name__ == '__main__':
     # test_parse_gv_file('nb_1191_new_labels.gv')
     #get_tree_structure('nb_1194.ipynb')
 
-    app.run(debug=True, port=5001, use_reloader=False)
+    app.run(debug=True, port=5002, use_reloader=False)
