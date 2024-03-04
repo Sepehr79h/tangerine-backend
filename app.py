@@ -115,6 +115,57 @@ def get_node_category():
     return response.choices[0].message.content
     #return jsonify(response)
 
+@app.route('/get-node-header', methods=['POST'])
+def get_node_header():
+    print("Getting node headers on backend...")
+    client = OpenAI(
+        api_key=OPENAI_API_KEY_GPT4,#os.environ.get("CUSTOM_ENV_NAME"),
+    )
+    data = request.json
+    #breakpoint()
+    filepath = data['filepath']
+    cell_id = int(data['cellIndex'])
+    # get the code from the cell in the notebook with filepath
+    frontend_path = '../tangerine'
+    file_path = os.path.join(frontend_path, filepath)
+    # Ensure the file exists
+    if not os.path.exists(file_path):
+        return {"error": "File not found"}, 404
+    # Read the notebook
+    with open(file_path, 'r', encoding='utf-8') as f:
+        nb = read(f, as_version=4)
+    # Extract the code from the specified cell
+    code = None
+    for cell in nb.cells:
+        if cell.cell_type == 'code' and cell.execution_count == cell_id:
+            code = cell.source
+            break
+    if code is None:
+        print("no execution count found for cell: ", cell_id)
+        return 'other'
+    #breakpoint()
+    #code = data['code']
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {
+            "role": "system",
+            "content": "You will be provided with Python code, and your task is to provide a header for the code, that is no longer than 3 words. Return the header as a string."
+            },
+            {
+            "role": "user",
+            "content": code
+            },
+        ],
+        temperature=1,
+        max_tokens=256,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+    return response.choices[0].message.content
+    #return jsonify(response)
+
 
 
 if __name__ == '__main__':
