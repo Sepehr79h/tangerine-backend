@@ -3,12 +3,19 @@ import os
 import subprocess
 from flask_cors import CORS
 from collections import defaultdict
+from openai import OpenAI
+from nbformat import read
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
 # Directory where uploaded notebooks will be saved
 UPLOAD_FOLDER = 'notebooks'
+OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
+OPENAI_API_KEY_GPT4=os.environ.get("OPENAI_API_KEY_GPT4")
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.route('/')
@@ -56,6 +63,58 @@ def get_tree_structure():
         return jsonify(treeData)
     except FileNotFoundError:
         return jsonify({'error': 'File not found'}), 404
+    
+@app.route('/get-node-category', methods=['POST'])
+def get_node_category():
+    print("Getting node category on backend...")
+    client = OpenAI(
+        api_key=OPENAI_API_KEY_GPT4,#os.environ.get("CUSTOM_ENV_NAME"),
+    )
+    data = request.json
+    #breakpoint()
+    filepath = data['filepath']
+    cell_id = int(data['cellIndex'])
+    # get the code from the cell in the notebook with filepath
+    frontend_path = '../tangerine'
+    file_path = os.path.join(frontend_path, filepath)
+    # Ensure the file exists
+    if not os.path.exists(file_path):
+        return {"error": "File not found"}, 404
+    # Read the notebook
+    with open(file_path, 'r', encoding='utf-8') as f:
+        nb = read(f, as_version=4)
+    # Extract the code from the specified cell
+    code = None
+    for cell in nb.cells:
+        if cell.cell_type == 'code' and cell.execution_count == cell_id:
+            code = cell.source
+            break
+    if code is None:
+        print("no execution count found for cell: ", cell_id)
+        return 'other'
+    #breakpoint()
+    #code = data['code']
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {
+            "role": "system",
+            "content": "You will be provided with Python code, and your task is to categorize the code as one of the following categories:\n- IMPORT\n- DATA WRANGLE\n- EXPLORE\n- MODEL\n- EVALUATE. Return the category as one of the following strings (in lowercase): import, wrangle, explore, model, evaluate"
+            },
+            {
+            "role": "user",
+            "content": code
+            },
+        ],
+        temperature=1,
+        max_tokens=256,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+    return response.choices[0].message.content
+    #return jsonify(response)
+
 
 
 if __name__ == '__main__':
