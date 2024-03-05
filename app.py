@@ -15,7 +15,6 @@ CORS(app)
 # Directory where uploaded notebooks will be saved
 UPLOAD_FOLDER = 'notebooks'
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
-OPENAI_API_KEY_GPT4=os.environ.get("OPENAI_API_KEY_GPT4")
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.route('/')
@@ -68,7 +67,7 @@ def get_tree_structure():
 def get_node_category():
     print("Getting node category on backend...")
     client = OpenAI(
-        api_key=OPENAI_API_KEY_GPT4,#os.environ.get("CUSTOM_ENV_NAME"),
+        api_key=OPENAI_API_KEY,#os.environ.get("CUSTOM_ENV_NAME"),
     )
     data = request.json
     #breakpoint()
@@ -119,7 +118,7 @@ def get_node_category():
 def get_node_header():
     print("Getting node headers on backend...")
     client = OpenAI(
-        api_key=OPENAI_API_KEY_GPT4,#os.environ.get("CUSTOM_ENV_NAME"),
+        api_key=OPENAI_API_KEY,#os.environ.get("CUSTOM_ENV_NAME"),
     )
     data = request.json
     #breakpoint()
