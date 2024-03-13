@@ -57,7 +57,10 @@ def get_tree_structure():
             elif '[' in line:
                 node_id = line.split('[', 1)[0].strip()
                 nodes.append({'id': node_id})
+        #remove duplicate nodes
+        nodes = [dict(t) for t in {tuple(d.items()) for d in nodes}]
         treeData = {'nodes': nodes, 'edges': edges}
+        print(treeData)
         print('Tree structure processed successfully')
         return jsonify(treeData)
     except FileNotFoundError:
