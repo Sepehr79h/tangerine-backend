@@ -6,6 +6,8 @@ from collections import defaultdict
 from openai import OpenAI
 from nbformat import read
 from dotenv import load_dotenv
+import nbformat
+import ast
 
 load_dotenv()
 
@@ -62,9 +64,60 @@ def get_tree_structure():
         treeData = {'nodes': nodes, 'edges': edges}
         print(treeData)
         print('Tree structure processed successfully')
+        treeData = enrich_tree_data(treeData, notebook_path)
         return jsonify(treeData)
     except FileNotFoundError:
         return jsonify({'error': 'File not found'}), 404
+    
+def enrich_tree_data(treeData, notebook_path):
+    # Load the notebook
+    with open(notebook_path, 'r', encoding='utf-8') as f:
+        nb = nbformat.read(f, as_version=4)
+    
+    # Initialize the result dictionary
+    result = {"cells": []}
+    
+    # Iterate through the notebook cells
+    for cell in nb.cells:
+        if cell.cell_type == 'code':
+            # Extract the code and the execution count (cell_id in this context)
+            cell_data = {
+                "cell_id": str(cell.execution_count),
+                "code": cell.source.split('\n')  # Splitting source code by newline to get a list of code lines
+            }
+            result['cells'].append(cell_data)
+    
+    gpt_input = str(result | treeData)
+    #breakpoint()
+    client = OpenAI(
+        api_key=OPENAI_API_KEY,#os.environ.get("CUSTOM_ENV_NAME"),
+    )
+    response = client.chat.completions.create(
+    model="gpt-4-turbo-preview",
+    messages=[
+        {
+        "role": "system",
+        "content": "You will be given a json that contains the python code of the cells in a jupyter notebook file, and the nodes and edges to show the dependency between the cells which will be used for a ReactFlow visualization. Update the nodes key in the JSON so that it assigns the cell to the appropriate parentNode and adds a descriptive titles to to represent what each node is doing. Ensure the output is strictly in JSON format, suitable for direct use in ReactFlow, without any additional explanations, strings, or context. Use the following format:\n\n{\n  \"nodes\": [\n    {\"id\": \"import\", \"data\": {\"label\": \"Data Import\"}},\n    {\"id\": \"wrangle\", \"data\": {\"label\": \"Data Wrangling\"}},\n    {\"id\": \"explore\", \"data\": {\"label\": \"Data Exploration\"}},\n    {\"id\": \"model\", \"data\": {\"label\": \"Model Building\"}},\n    {\"id\": \"evaluate\", \"data\": {\"label\": \"Model Evaluation\"}},\n    {\"id\": \"<cell_id>\", \"data\": {\"label\": \"<1-5 word descriptive title explaining what this code cell is doing>\"}, \"parentNode\": \"<import, wrangle, explore, model, evaluate>\"}\n  ]\n}"
+        },
+        {
+        "role": "user",
+        "content": gpt_input
+        },
+    ],
+    temperature=0,
+    max_tokens=4095,
+    top_p=1,
+    frequency_penalty=0,
+    presence_penalty=0
+    )
+    #breakpoint()
+    output = response.choices[0].message.content
+    output = ast.literal_eval(output)
+    output["edges"] = treeData["edges"]
+    #breakpoint()
+
+    return output
+
     
 @app.route('/get-node-category', methods=['POST'])
 def get_node_category():
@@ -167,8 +220,6 @@ def get_node_header():
     )
     return response.choices[0].message.content
     #return jsonify(response)
-
-
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
