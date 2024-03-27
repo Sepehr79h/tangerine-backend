@@ -65,6 +65,10 @@ def get_tree_structure():
         print(treeData)
         print('Tree structure processed successfully')
         treeData = enrich_tree_data(treeData, notebook_path)
+        #print(treeData)
+        #breakpoint()
+        treeData = get_grouped_tree_structure(treeData)
+        print(treeData)
         return jsonify(treeData)
     except FileNotFoundError:
         return jsonify({'error': 'File not found'}), 404
@@ -93,7 +97,7 @@ def enrich_tree_data(treeData, notebook_path):
         api_key=OPENAI_API_KEY,#os.environ.get("CUSTOM_ENV_NAME"),
     )
     response = client.chat.completions.create(
-    model="gpt-4-turbo-preview",
+    model="gpt-4",
     messages=[
         {
         "role": "system",
@@ -220,6 +224,102 @@ def get_node_header():
     )
     return response.choices[0].message.content
     #return jsonify(response)
+
+def update_parentNode(data):
+    for node in data['nodes']:
+        if 'parentNode' in node:
+            node['categoryColor'] = node['parentNode']
+            del node['parentNode']
+    data['nodes'] = [node for node in data['nodes'] if 'categoryColor' in node]
+    return data
+
+def create_node_groups(data):
+    groups = {}
+    current_group = None
+
+    #store the nodes where id is a digit first
+    cell_nodes = [node for node in data['nodes'] if node['id'].isdigit()]
+    sorted_nodes = sorted(cell_nodes, key=lambda x: int(x['id']))
+
+    # creates a group for each set of sequential nodes (id is sequential) that have the same parentNode
+    for node in sorted_nodes:
+        parent = node['categoryColor']
+        if parent != current_group:
+            current_group = parent
+            group_name = "group_"+node["id"]
+            groups[group_name] = [node]
+        else:
+            groups[group_name].append(node)
+    
+    # drop groups with 1 or 0 nodes
+    groups = {k: v for k, v in groups.items() if len(v) > 1}
+    return groups
+
+def update_nodes_with_groups(data, groups):
+    for group in groups:
+        # create a new node for the group
+        group_node = {
+            'id': group,
+            'data': {
+                'label': group
+            },
+            'categoryColor': groups[group][0]['categoryColor']
+        }
+        data['nodes'].append(group_node)
+
+        # add edges between the group and its nodes
+        for node in groups[group]:
+            # change parentNode to the group in data['nodes']
+            node['parentNode'] = group
+            #find the node in data['nodes'] and update it
+            for n in data['nodes']:
+                if n['id'] == node['id']:
+                    n['parentNode'] = group
+                    break     
+    return data
+
+def update_edges_with_groups(data, groups):
+    # Initialize a set for the new edges to avoid duplicates
+    new_edges = set()
+
+    # Iterate over the existing edges to construct new edges based on group membership
+    for edge in data['edges']:
+        source, target = edge['source'], edge['target']
+        source_group, target_group = None, None
+
+        # Determine if the source node is part of any group
+        for group, nodes in groups.items():
+            if any(node['id'] == source for node in nodes):
+                source_group = group
+                break
+
+        # Determine if the target node is part of any group
+        for group, nodes in groups.items():
+            if any(node['id'] == target for node in nodes):
+                target_group = group
+                break
+
+        # Create new edges based on the group membership of source and target nodes
+        if source_group and target_group and source_group != target_group:
+            new_edges.add((source_group, target_group))
+        if source_group and source_group != target_group:
+            new_edges.add((source_group, target))
+        if target_group and source_group != target_group:
+            new_edges.add((source, target_group))
+
+    # Add the new edges to the data['edges'], ensuring no duplicates are introduced
+    for edge in new_edges:
+        if not any(e['source'] == edge[0] and e['target'] == edge[1] for e in data['edges']):
+            data['edges'].append({'source': edge[0], 'target': edge[1]})
+
+    return data
+
+def get_grouped_tree_structure(data):
+    data = update_parentNode(data)
+    groups = create_node_groups(data)
+    data = update_nodes_with_groups(data, groups)
+    data = update_edges_with_groups(data, groups)
+    return data
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
