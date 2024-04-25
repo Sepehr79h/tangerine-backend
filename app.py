@@ -8,6 +8,8 @@ from nbformat import read
 from dotenv import load_dotenv
 import nbformat
 import ast
+from grouping import get_grouped_tree_structure
+from suggestions import get_suggestions_input
 
 load_dotenv()
 
@@ -28,6 +30,44 @@ def process_notebooks(folder_name):
     subprocess.run(["python", "Jupyter-Notebook-Project/generate_json_dictionaries_all_files.py", folder_name])
     subprocess.run(["node", "Jupyter-Notebook-Project/analyze_notebooks.js", folder_name])
     subprocess.run(["python", "Jupyter-Notebook-Project/generate_graphs_cell_level.py", folder_name])
+
+@app.route('/get-suggestions', methods=['POST'])
+def get_node_suggestions():
+    data = request.json
+    node_id = data['nodeId']
+    frontend_path = '../tangerine'
+    filepath = data['filepath']
+    notebook_path = os.path.join(frontend_path, filepath)
+    edges = data['edges']
+    suggestions_input = get_suggestions_input(node_id, notebook_path, edges)
+    # return [
+    #   { "id": "suggestion1", "label": 'Next Step A' },
+    #   { "id": "suggestion1", "label": 'Next Step A' },
+    #   { "id": "suggestion1", "label": 'Next Step A' }
+    # ]
+    client = OpenAI(
+        api_key=OPENAI_API_KEY,
+    )
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {
+            "role": "system",
+            "content": "You will be given a json that corresponds to the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). \n\nYour job is to provide 3 suggestions (each in the form of a code cell) as next possible steps to take after a code cell. Each suggestion should be a continuation of the last cell in the json and the suggestions should have be dependent on the last cell of the json. Suggestions should be independent of each other and not have any dependencies between them as they are alternative paths of exploration.  The suggestions should have a descriptive title, the code cell for that suggestion, and a category corresponding to the EDA stage that the code falls under. \n\nUse the following format:\n\n[\n            {'id': '<suggestion_1>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },\n            {'id': '<suggestion_2>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },\n            {'id': '<suggestion_3>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },           \n]\n\n"
+            },
+            {
+            "role": "user",
+            "content": str(suggestions_input)
+            },
+        ],
+        temperature=0,
+        max_tokens=5418,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+    output = response.choices[0].message.content
+    return ast.literal_eval(output)
 
 @app.route('/get-tree-structure', methods=['POST'])
 def get_tree_structure():
@@ -62,12 +102,10 @@ def get_tree_structure():
         #remove duplicate nodes
         nodes = [dict(t) for t in {tuple(d.items()) for d in nodes}]
         treeData = {'nodes': nodes, 'edges': edges}
-        print(treeData)
-        print('Tree structure processed successfully')
-        treeData = enrich_tree_data(treeData, notebook_path)
         #print(treeData)
-        #breakpoint()
-        treeData = get_grouped_tree_structure(treeData)
+        print('Tree structure processed successfully')
+        #treeData = enrich_tree_data(treeData, notebook_path)
+        #treeData = get_grouped_tree_structure(treeData)
         print(treeData)
         return jsonify(treeData)
     except FileNotFoundError:
@@ -97,7 +135,8 @@ def enrich_tree_data(treeData, notebook_path):
         api_key=OPENAI_API_KEY,#os.environ.get("CUSTOM_ENV_NAME"),
     )
     response = client.chat.completions.create(
-    model="gpt-4",
+    model="gpt-4-0125-preview",
+    response_format={"type": "json_object"},
     messages=[
         {
         "role": "system",
@@ -110,7 +149,7 @@ def enrich_tree_data(treeData, notebook_path):
     ],
     temperature=0,
     max_tokens=4095,
-    top_p=1,
+    top_p=0,
     frequency_penalty=0,
     presence_penalty=0
     )
@@ -121,7 +160,6 @@ def enrich_tree_data(treeData, notebook_path):
     #breakpoint()
 
     return output
-
     
 @app.route('/get-node-category', methods=['POST'])
 def get_node_category():
@@ -223,103 +261,6 @@ def get_node_header():
         presence_penalty=0
     )
     return response.choices[0].message.content
-    #return jsonify(response)
-
-def update_parentNode(data):
-    for node in data['nodes']:
-        if 'parentNode' in node:
-            node['categoryColor'] = node['parentNode']
-            del node['parentNode']
-    data['nodes'] = [node for node in data['nodes'] if 'categoryColor' in node]
-    return data
-
-def create_node_groups(data):
-    groups = {}
-    current_group = None
-
-    #store the nodes where id is a digit first
-    cell_nodes = [node for node in data['nodes'] if node['id'].isdigit()]
-    sorted_nodes = sorted(cell_nodes, key=lambda x: int(x['id']))
-
-    # creates a group for each set of sequential nodes (id is sequential) that have the same parentNode
-    for node in sorted_nodes:
-        parent = node['categoryColor']
-        if parent != current_group:
-            current_group = parent
-            group_name = "group_"+node["id"]
-            groups[group_name] = [node]
-        else:
-            groups[group_name].append(node)
-    
-    # drop groups with 1 or 0 nodes
-    groups = {k: v for k, v in groups.items() if len(v) > 1}
-    return groups
-
-def update_nodes_with_groups(data, groups):
-    for group in groups:
-        # create a new node for the group
-        group_node = {
-            'id': group,
-            'data': {
-                'label': group
-            },
-            'categoryColor': groups[group][0]['categoryColor']
-        }
-        data['nodes'].append(group_node)
-
-        # add edges between the group and its nodes
-        for node in groups[group]:
-            # change parentNode to the group in data['nodes']
-            node['parentNode'] = group
-            #find the node in data['nodes'] and update it
-            for n in data['nodes']:
-                if n['id'] == node['id']:
-                    n['parentNode'] = group
-                    break     
-    return data
-
-def update_edges_with_groups(data, groups):
-    # Initialize a set for the new edges to avoid duplicates
-    new_edges = set()
-
-    # Iterate over the existing edges to construct new edges based on group membership
-    for edge in data['edges']:
-        source, target = edge['source'], edge['target']
-        source_group, target_group = None, None
-
-        # Determine if the source node is part of any group
-        for group, nodes in groups.items():
-            if any(node['id'] == source for node in nodes):
-                source_group = group
-                break
-
-        # Determine if the target node is part of any group
-        for group, nodes in groups.items():
-            if any(node['id'] == target for node in nodes):
-                target_group = group
-                break
-
-        # Create new edges based on the group membership of source and target nodes
-        if source_group and target_group and source_group != target_group:
-            new_edges.add((source_group, target_group))
-        if source_group and source_group != target_group:
-            new_edges.add((source_group, target))
-        if target_group and source_group != target_group:
-            new_edges.add((source, target_group))
-
-    # Add the new edges to the data['edges'], ensuring no duplicates are introduced
-    for edge in new_edges:
-        if not any(e['source'] == edge[0] and e['target'] == edge[1] for e in data['edges']):
-            data['edges'].append({'source': edge[0], 'target': edge[1]})
-
-    return data
-
-def get_grouped_tree_structure(data):
-    data = update_parentNode(data)
-    groups = create_node_groups(data)
-    data = update_nodes_with_groups(data, groups)
-    data = update_edges_with_groups(data, groups)
-    return data
 
 if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
