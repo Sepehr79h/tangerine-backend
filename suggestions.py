@@ -47,7 +47,7 @@ def get_suggestions_input(node_id, notebook_path, edges):
             }
             result['cells'].append(cell_data)
     
-    print(result)
+    #print(result)
     return result
 
     

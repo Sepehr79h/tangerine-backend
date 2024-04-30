@@ -10,6 +10,7 @@ import nbformat
 import ast
 from grouping import get_grouped_tree_structure
 from suggestions import get_suggestions_input
+import json
 
 load_dotenv()
 
@@ -49,7 +50,7 @@ def get_node_suggestions():
         api_key=OPENAI_API_KEY,
     )
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4-turbo",
         messages=[
             {
             "role": "system",
@@ -61,12 +62,13 @@ def get_node_suggestions():
             },
         ],
         temperature=0,
-        max_tokens=5418,
-        top_p=1,
+        max_tokens=4095,
+        top_p=0,
         frequency_penalty=0,
         presence_penalty=0
     )
     output = response.choices[0].message.content
+    print(output)
     return ast.literal_eval(output)
 
 @app.route('/get-tree-structure', methods=['POST'])
@@ -102,11 +104,15 @@ def get_tree_structure():
         #remove duplicate nodes
         nodes = [dict(t) for t in {tuple(d.items()) for d in nodes}]
         treeData = {'nodes': nodes, 'edges': edges}
-        #print(treeData)
-        print('Tree structure processed successfully')
-        #treeData = enrich_tree_data(treeData, notebook_path)
-        #treeData = get_grouped_tree_structure(treeData)
+        print('1')
         print(treeData)
+        print('Tree structure processed successfully')
+        # treeData = enrich_tree_data(treeData, notebook_path)
+        # print('2')
+        # print(treeData)
+        # treeData = get_grouped_tree_structure(treeData)
+        # print('3')
+        # print(treeData)
         return jsonify(treeData)
     except FileNotFoundError:
         return jsonify({'error': 'File not found'}), 404
@@ -129,37 +135,59 @@ def enrich_tree_data(treeData, notebook_path):
             }
             result['cells'].append(cell_data)
     
-    gpt_input = str(result | treeData)
-    #breakpoint()
-    client = OpenAI(
-        api_key=OPENAI_API_KEY,#os.environ.get("CUSTOM_ENV_NAME"),
-    )
+    # gpt_input = str(result | treeData)
+    # breakpoint()
+    # client = OpenAI(
+    #     api_key=OPENAI_API_KEY,#os.environ.get("CUSTOM_ENV_NAME"),
+    # )
+    # response = client.chat.completions.create(
+    # model="gpt-4-0125-preview",
+    # response_format={"type": "json_object"},
+    # messages=[
+    #     {
+    #     "role": "system",
+    #     "content": "You will be given a json that contains the python code of the cells in a jupyter notebook file, and the nodes and edges to show the dependency between the cells which will be used for a ReactFlow visualization. Update the nodes key in the JSON so that it assigns the cell to the appropriate parentNode and adds a descriptive titles to to represent what each node is doing. Ensure the output is strictly in JSON format, suitable for direct use in ReactFlow, without any additional explanations, strings, or context. Use the following format:\n\n{\n  \"nodes\": [\n    {\"id\": \"import\", \"data\": {\"label\": \"Data Import\"}},\n    {\"id\": \"wrangle\", \"data\": {\"label\": \"Data Wrangling\"}},\n    {\"id\": \"explore\", \"data\": {\"label\": \"Data Exploration\"}},\n    {\"id\": \"model\", \"data\": {\"label\": \"Model Building\"}},\n    {\"id\": \"evaluate\", \"data\": {\"label\": \"Model Evaluation\"}},\n    {\"id\": \"<cell_id>\", \"data\": {\"label\": \"<1-5 word descriptive title explaining what this code cell is doing>\"}, \"parentNode\": \"<import, wrangle, explore, model, evaluate>\"}\n  ]\n}"
+    #     },
+    #     {
+    #     "role": "user",
+    #     "content": gpt_input
+    #     },
+    # ],
+    # temperature=0,
+    # max_tokens=4095,
+    # top_p=0,
+    # frequency_penalty=0,
+    # presence_penalty=0
+    # )
+    # #breakpoint()
+    # output = response.choices[0].message.content
+    # output = ast.literal_eval(output)
+    # output["edges"] = treeData["edges"]
+    gpt_input = json.dumps(result)
+    client = OpenAI()
     response = client.chat.completions.create(
-    model="gpt-4-0125-preview",
-    response_format={"type": "json_object"},
-    messages=[
-        {
-        "role": "system",
-        "content": "You will be given a json that contains the python code of the cells in a jupyter notebook file, and the nodes and edges to show the dependency between the cells which will be used for a ReactFlow visualization. Update the nodes key in the JSON so that it assigns the cell to the appropriate parentNode and adds a descriptive titles to to represent what each node is doing. Ensure the output is strictly in JSON format, suitable for direct use in ReactFlow, without any additional explanations, strings, or context. Use the following format:\n\n{\n  \"nodes\": [\n    {\"id\": \"import\", \"data\": {\"label\": \"Data Import\"}},\n    {\"id\": \"wrangle\", \"data\": {\"label\": \"Data Wrangling\"}},\n    {\"id\": \"explore\", \"data\": {\"label\": \"Data Exploration\"}},\n    {\"id\": \"model\", \"data\": {\"label\": \"Model Building\"}},\n    {\"id\": \"evaluate\", \"data\": {\"label\": \"Model Evaluation\"}},\n    {\"id\": \"<cell_id>\", \"data\": {\"label\": \"<1-5 word descriptive title explaining what this code cell is doing>\"}, \"parentNode\": \"<import, wrangle, explore, model, evaluate>\"}\n  ]\n}"
-        },
-        {
-        "role": "user",
-        "content": gpt_input
-        },
-    ],
-    temperature=0,
-    max_tokens=4095,
-    top_p=0,
-    frequency_penalty=0,
-    presence_penalty=0
+        model="gpt-4-turbo",
+        messages=[
+            {
+            "role": "system",
+            "content": "You will be given a json that contains the python code of the cells in a jupyter notebook file. Your task is to assign each code cell with a descriptive title and category. Ensure the output is strictly in JSON format, without any additional explanations, strings, or context. Use the format:\n\n[{'id': '1', 'data': {'label': '<1-5 word descriptive title explaining what this code cell is doing>', 'categoryColor': '<import, wrangle, explore, model, evaluate>'}}, # repeat for all the other nodes]"
+            },
+            {
+            "role": "user",
+            "content": gpt_input
+            }
+        ],
+        temperature=0,
+        max_tokens=4095,
+        top_p=0,
+        frequency_penalty=0,
+        presence_penalty=0
     )
-    #breakpoint()
     output = response.choices[0].message.content
-    output = ast.literal_eval(output)
-    output["edges"] = treeData["edges"]
-    #breakpoint()
-
-    return output
+    nodes = ast.literal_eval(output)
+    edges = treeData["edges"]
+    enriched_tree_data = {"nodes": nodes, "edges": edges}
+    return enriched_tree_data
     
 @app.route('/get-node-category', methods=['POST'])
 def get_node_category():

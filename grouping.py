@@ -117,16 +117,16 @@ def get_labeled_grouped_tree_structure(treeData, groups):
         messages=[
             {
             "role": "system",
-            "content": "You will be given a json that contains groups, and all the nodes in those respective groups. Your job is to assign descriptive labels to the groups based on the labels of the nodes in each group. The label you assign to a group must be representative of all the labels of the nodes in that group. It shouldn't be something vague like \"data import\". It should capture all the labels of the nodes in the group. Do not repeat any words in the categoryColor in this label, since the uesr already knows about that. Use the following format:\n\n[{'id': '<group_id (e.g. group1)>', 'data': {'label': 'detailed and specific 3 word title representative of all the labels of the nodes in that group. Do not repeat any words in the categoryColor in this label, since the uesr already knows about that.}}, #add other groups]\n\n"
+            "content": "You will be given a json that contains groups, and all the nodes in those respective groups. Your job is to assign descriptive labels to the groups based on the labels of the nodes in each group. The label you assign to a group must be representative of all the labels of the nodes in that group. It shouldn't be something vague like \"data import\". It should capture all the labels of the nodes in the group. Do not repeat any words in the categoryColor in this label, since the user already knows about that. Use the following format:\n\n[{'id': '<group_id (e.g. group1)>', 'data': {'label': 'detailed and specific 3 word title representative of all the labels of the nodes in that group. Do not repeat any words in the categoryColor in this label, since the uesr already knows about that.}}, #add other groups]\n\n"
             },
             {
             "role": "user",
             "content": str(groups)
             },
         ],
-        temperature=1,
+        temperature=0,
         max_tokens=256,
-        top_p=1,
+        top_p=0,
         frequency_penalty=0,
         presence_penalty=0
     )
@@ -150,7 +150,7 @@ def get_labeled_grouped_tree_structure(treeData, groups):
     return treeData
 
 def get_grouped_tree_structure(data):
-    data = update_parentNode(data)
+    #data = update_parentNode(data)
     groups = create_node_groups(data)
     data = update_nodes_with_groups(data, groups)
     data = update_edges_with_groups(data, groups)
