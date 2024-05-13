@@ -10,6 +10,7 @@ import nbformat
 import ast
 from grouping import get_grouped_tree_structure
 from suggestions import get_suggestions_input
+from update import get_updated_tree
 import json
 
 load_dotenv()
@@ -31,6 +32,16 @@ def process_notebooks(folder_name):
     subprocess.run(["python", "Jupyter-Notebook-Project/generate_json_dictionaries_all_files.py", folder_name])
     subprocess.run(["node", "Jupyter-Notebook-Project/analyze_notebooks.js", folder_name])
     subprocess.run(["python", "Jupyter-Notebook-Project/generate_graphs_cell_level.py", folder_name])
+
+@app.route('/get-add-node-tree', methods=['POST'])
+def get_add_node_tree():
+    data = request.json
+    filepath = data['filepath']
+    curr_tree = data['currTree']
+    new_node = data['newNode']
+    initial_tree = get_initial_tree(filepath)
+    updated_tree = get_updated_tree(curr_tree, new_node, initial_tree)
+    breakpoint()
 
 @app.route('/get-suggestions', methods=['POST'])
 def get_node_suggestions():
@@ -54,7 +65,8 @@ def get_node_suggestions():
         messages=[
             {
             "role": "system",
-            "content": "You will be given a json that corresponds to the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). \n\nYour job is to provide 3 suggestions (each in the form of a code cell) as next possible steps to take after a code cell. Each suggestion should be a continuation of the last cell in the json and the suggestions should have be dependent on the last cell of the json. Suggestions should be independent of each other and not have any dependencies between them as they are alternative paths of exploration.  The suggestions should have a descriptive title, the code cell for that suggestion, and a category corresponding to the EDA stage that the code falls under. \n\nUse the following format:\n\n[\n            {'id': '<suggestion_1>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },\n            {'id': '<suggestion_2>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },\n            {'id': '<suggestion_3>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },           \n]\n\n"
+            # "content": "You will be given a json that corresponds to the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). \n\nYour job is to provide 3 suggestions (each in the form of a code cell) as next possible steps to take after a code cell. Each suggestion should be a continuation of the last cell in the json and the suggestions should have be dependent on the last cell of the json. Suggestions should be independent of each other and not have any dependencies between them as they are alternative paths of exploration.  The suggestions should have a descriptive title, the code cell for that suggestion, and a category corresponding to the EDA stage that the code falls under. \n\nUse the following format:\n\n[\n            {'id': '<suggestion_1>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },\n            {'id': '<suggestion_2>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },\n            {'id': '<suggestion_3>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'code': ['line1',\n                     'keep adding lines of code here',],\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },           \n]\n\n"
+            "content": "You will be given a json that corresponds to the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). \n\nYour job is to provide 3 suggestions as next possible steps to take after a code cell. Each suggestion should be a continuation of the last cell in the json and the suggestions should have be dependent on the last cell of the json. Suggestions should be independent of each other and not have any dependencies between them as they are alternative paths of exploration.  The suggestions should have a descriptive title and a category corresponding to the EDA stage that the code falls under. \n\nUse the following format:\n\n[\n            {'id': '<suggestion_1>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },\n            {'id': '<suggestion_2>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },\n            {'id': '<suggestion_3>',\n            'label': '<1-5 word descriptive title explaining what this code cell is doing>',\n            'category': '<import, wrangle, explore, model, evaluate>'\n            },           \n]\n\n"
             },
             {
             "role": "user",
@@ -71,11 +83,43 @@ def get_node_suggestions():
     print(output)
     return ast.literal_eval(output)
 
-@app.route('/get-tree-structure', methods=['POST'])
-def get_tree_structure():
-    print('Processing tree structure in backend...')
+@app.route('/get-suggestions-code', methods=['POST'])
+def get_node_suggestions_code():
     data = request.json
+    node_id = data['nodeId']
+    frontend_path = '../tangerine'
     filepath = data['filepath']
+    notebook_path = os.path.join(frontend_path, filepath)
+    edges = data['edges']
+    suggestion = data['suggestion']
+    suggestions_input = get_suggestions_input(node_id, notebook_path, edges)
+    client = OpenAI(
+        api_key=OPENAI_API_KEY,
+    )
+    response = client.chat.completions.create(
+        model="gpt-4-turbo",
+        messages=[
+            {
+            "role": "system",
+            "content": "You will be given a json that contains two keys. First, a 'cells' key that contains the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). Second, a 'suggestion' key that contains a description of what the next cell in the jupyter notebook should be. \n\nYour job is to provide is to provide the code for this next cell. This code should be a continuation of the last cell in the json it should be dependent on that cell.\n\nUse the following format:\n\n{'code': ['line1', 'keep adding lines of code here',]\n\n"
+            },
+            {
+            "role": "user",
+            "content": str(suggestions_input | {'suggestion': suggestion })
+            },
+        ],
+        temperature=0,
+        max_tokens=4095,
+        top_p=0,
+        frequency_penalty=0,
+        presence_penalty=0
+    )
+    output = response.choices[0].message.content
+    print(output)
+    return ast.literal_eval(output)
+
+
+def get_initial_tree(filepath):
     frontend_path = '../tangerine'
     filename = filepath.split('.')[0]
     folder_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -104,6 +148,19 @@ def get_tree_structure():
         #remove duplicate nodes
         nodes = [dict(t) for t in {tuple(d.items()) for d in nodes}]
         treeData = {'nodes': nodes, 'edges': edges}
+        return treeData
+    except FileNotFoundError:
+        return {'error': 'File not found'}, 404
+
+@app.route('/get-tree-structure', methods=['POST'])
+def get_tree_structure():
+    print('Processing tree structure in backend...')
+    data = request.json
+    filepath = data['filepath']
+    frontend_path = '../tangerine'
+    notebook_path = os.path.join(frontend_path, filepath)
+    try:
+        treeData = get_initial_tree(filepath)
         print('1')
         print(treeData)
         print('Tree structure processed successfully')
@@ -134,6 +191,8 @@ def enrich_tree_data(treeData, notebook_path):
                 "code": cell.source.split('\n')  # Splitting source code by newline to get a list of code lines
             }
             result['cells'].append(cell_data)
+    
+    #breakpoint()
     
     # gpt_input = str(result | treeData)
     # breakpoint()
