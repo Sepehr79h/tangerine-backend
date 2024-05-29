@@ -139,10 +139,10 @@ def get_labeled_grouped_tree_structure(treeData, groups):
                 if group['id'] == node['id']:
                     node['data']['label'] = group['data']['label']
                     # add id of all nodes in the group to the label in the format: first_id-last_id
-                    node['data']['label'] += ' [' + groups[node['id']][0]['id'] + '-' + groups[node['id']][-1]['id'] + ']'
-        else:
-            #add the node id to the label
-            node['data']['label'] += ' [' + node['id'] + ']'
+                    #node['data']['label'] += ' [' + groups[node['id']][0]['id'] + '-' + groups[node['id']][-1]['id'] + ']'
+        # else:
+        #     #add the node id to the label
+        #     node['data']['label'] += ' [' + node['id'] + ']'
 
 
                     #node['data']['label'] += ' (' + ', '.join([n['id'] for n in groups[node['id']]]) + ')'

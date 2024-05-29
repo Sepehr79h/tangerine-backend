@@ -61,7 +61,7 @@ def get_node_suggestions():
         api_key=OPENAI_API_KEY,
     )
     response = client.chat.completions.create(
-        model="gpt-4-turbo",
+        model="gpt-4o",
         messages=[
             {
             "role": "system",
@@ -97,11 +97,11 @@ def get_node_suggestions_code():
         api_key=OPENAI_API_KEY,
     )
     response = client.chat.completions.create(
-        model="gpt-4-turbo",
+        model="gpt-4o",
         messages=[
             {
             "role": "system",
-            "content": "You will be given a json that contains two keys. First, a 'cells' key that contains the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). Second, a 'suggestion' key that contains a description of what the next cell in the jupyter notebook should be. \n\nYour job is to provide is to provide the code for this next cell. This code should be a continuation of the last cell in the json it should be dependent on that cell.\n\nUse the following format:\n\n{'code': ['line1', 'keep adding lines of code here',]\n\n"
+            "content": "You will be given a json that contains two keys. First, a 'cells' key that contains the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). Second, a 'suggestion' key that contains a description of what the next cell in the jupyter notebook should be. \n\nYour job is to provide is to provide the code for this next cell. This code should be a continuation of the last cell in the json it should be dependent on that cell. Put a comment explaining what the code is doing in the first line of the code cell. Your response must be in the form of a JSON. \n\nUse the following format:\n\n{'code': ['line1', 'keep adding lines of code here',]\n\n"
             },
             {
             "role": "user",
@@ -225,7 +225,7 @@ def enrich_tree_data(treeData, notebook_path):
     gpt_input = json.dumps(result)
     client = OpenAI()
     response = client.chat.completions.create(
-        model="gpt-4-turbo",
+        model="gpt-4o",
         messages=[
             {
             "role": "system",
