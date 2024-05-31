@@ -6,6 +6,8 @@ load_dotenv()
 OPENAI_API_KEY=os.environ.get("OPENAI_API_KEY")
 
 def get_suggestions_input(node_id, notebook_path, edges):
+    print(node_id)
+    print(edges)
     print('Getting suggestions...')
     # if node_id starts with group then set it to the value after the _
     if node_id.startswith('group'):
@@ -27,6 +29,7 @@ def get_suggestions_input(node_id, notebook_path, edges):
                 paths.append(subpath + [node_id])
 
         return paths
+    #breakpoint()
 
     # Retrieve all paths leading to node_id
     all_paths = find_paths(node_id, edges, [])
@@ -47,7 +50,7 @@ def get_suggestions_input(node_id, notebook_path, edges):
             }
             result['cells'].append(cell_data)
     
-    #print(result)
+    print(result)
     return result
 
     

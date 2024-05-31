@@ -101,7 +101,7 @@ def get_node_suggestions_code():
         messages=[
             {
             "role": "system",
-            "content": "You will be given a json that contains two keys. First, a 'cells' key that contains the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). Second, a 'suggestion' key that contains a description of what the next cell in the jupyter notebook should be. \n\nYour job is to provide is to provide the code for this next cell. This code should be a continuation of the last cell in the json it should be dependent on that cell. Put a comment explaining what the code is doing in the first line of the code cell. Your response must be in the form of a JSON. \n\nUse the following format:\n\n{'code': ['line1', 'keep adding lines of code here',]\n\n"
+            "content": "You will be given a json that contains two keys. First, a 'cells' key that contains the python code of the cells in a jupyter notebook file that is performing Exploratory Data Analysis (EDA). Second, a 'suggestion' key that contains a description of what the next cell in the jupyter notebook should be. \n\nYour job is to provide is to provide the code for this next cell. This code should be a continuation of the last cell in the json it should be dependent on that cell. Put a comment explaining what the code is doing in the first line of the code cell. Ensure the output is strictly in JSON format, without any additional explanations, strings, or context. \n\nUse the following format:\n\n{'code': ['line1', 'keep adding lines of code here',]\n\n"
             },
             {
             "role": "user",
