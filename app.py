@@ -10,6 +10,7 @@ import nbformat
 import ast
 from grouping import get_grouped_tree_structure
 from suggestions import get_suggestions_input
+from outputs import get_outputs
 from update import get_updated_tree
 import json
 
@@ -32,6 +33,16 @@ def process_notebooks(folder_name):
     subprocess.run(["python", "Jupyter-Notebook-Project/generate_json_dictionaries_all_files.py", folder_name])
     subprocess.run(["node", "Jupyter-Notebook-Project/analyze_notebooks.js", folder_name])
     subprocess.run(["python", "Jupyter-Notebook-Project/generate_graphs_cell_level.py", folder_name])
+
+@app.route('/get-outputs', methods=['POST'])
+def get_cell_outputs():
+    data = request.json
+    node_id = data['nodeId']
+    filepath = data['filepath']
+    frontend_path = '../tangerine'
+    notebook_path = os.path.join(frontend_path, filepath)
+    output = get_outputs(node_id, notebook_path)
+    return output
 
 @app.route('/get-add-node-tree', methods=['POST'])
 def get_add_node_tree():
